@@ -1,0 +1,306 @@
+---
+title: "Bouldering WorldCup Overall Rankings"
+author: "Ghinwa Moujaes"
+date: "13/07/2021"
+output: html_document
+---
+```{r}
+rm(list = ls())
+
+library(tidyverse)
+library(dplyr)
+
+df <- readxl::read_xlsx("Datasets/IFSC Bouldering Women Rankings_2000 to 2019.xlsx")
+df <- df %>% 
+  rename(rank = Rank, 
+         country = Country, 
+         first_name = `First Name`,
+         last_name = `Last Name`,
+         score = Score, 
+         year = Year)
+```
+Countries with the most gold medals
+```{r}
+df_medals <- df %>%
+  mutate(gold_medals = ifelse(rank == 1, 1, 0),
+         silver_medals = ifelse(rank == 2, 1, 0),
+         bronze_medals = ifelse(rank == 3, 1, 0)) %>% 
+  group_by(country) %>% 
+  summarize(num_gold_medal = sum(gold_medals),
+            num_silver_medal = sum(silver_medals),
+            num_bronze_medal = sum(bronze_medals), 
+            num_overall = num_gold_medal + num_silver_medal + num_bronze_medal) %>% 
+  filter(num_overall != 0) %>% 
+  arrange(desc(num_overall))
+
+df_medals
+```
+
+```{r}
+library(ggthemes)
+
+df_medals %>%
+  mutate(country = fct_reorder(country, num_overall)) %>%
+  ggplot(aes(x = country, y = num_overall)) +
+  geom_col() +
+  labs(title = "Overall medals won by each Country",
+       x = "Country",
+       y = "") +
+  theme_minimal() +
+  theme(axis.text.y = element_text(size = 9.5),
+        plot.title = element_text(hjust = 0.5)) 
+```
+
+```{r}
+df_medals %>%
+  tidyr::pivot_longer(
+    cols = c("num_gold_medal", "num_silver_medal", "num_bronze_medal"),
+    names_to = "medal",
+    values_to = "num_medals"
+  ) %>%
+  mutate(medal = factor(
+    medal,
+    levels = c("num_bronze_medal", "num_silver_medal", "num_gold_medal")
+  ),
+  country = fct_reorder(country, num_overall)) %>%
+  ggplot(aes(x = country, y = num_overall, fill = medal)) + geom_col() +
+  labs(title = "Overall medals won by each Country",
+       x = "Country",
+       y = "",
+       fill = "Type of Medal") +
+  theme_minimal() +
+  theme(axis.text.y = element_text(size = 9.5),
+        plot.title = element_text(hjust = 0.5)) +
+  scale_fill_discrete(labels = c("Bronze", "Silver", "Gold"))
+```
+
+```{r, Average number of players who make it to the top 50}
+#Create an empty dataframe of the list of countries & the list of years
+df_athletes_peryear <- data.frame(country = as.character(), 
+                                  year = as.integer())
+
+#Create a row and year for each country and each year in our dataset
+for (country in unique(df["country"])) {
+  for (year in c(2000:2019)) {
+    df_athletes_peryear <- rbind(df_athletes_peryear, data.frame(country, year))
+  }
+}
+
+#Calculate the average number of athletes in the top 50 per year - When there is no data, put 0 instead of NA
+
+df_athletes_peryear <- df_athletes_peryear %>% 
+  full_join(df %>% 
+  group_by(country, year) %>% 
+  summarize(number_of_athletes = n())) %>% 
+  mutate(number_of_athletes = coalesce(number_of_athletes, 0))
+
+#Now we can take the overall average 
+df_average <- df_athletes_peryear %>% 
+  group_by(country) %>% 
+  summarize(average_athletes = mean(number_of_athletes)) %>% 
+  arrange(desc(average_athletes))
+
+
+#Visualizations
+df_average %>% 
+  mutate(country = fct_reorder(country, average_athletes)) %>% 
+  ggplot(aes(x = country, y = average_athletes, label = average_athletes)) + 
+  geom_col(width = 0.3, col = "blue") + coord_flip() +
+  labs(title = "Average Number of Athletes in Top 50 Each Year",
+       y = "", 
+       x = "") +
+  theme_minimal() +
+  theme(axis.text.y = element_text(size = 9.5),
+        plot.title = element_text(hjust = 0.5)) + 
+    scale_y_continuous(expand = c(0,0),
+                     limits = c(-.24,8.9)) + 
+  geom_text(aes(label=average_athletes), size = 3.5, hjust = -0.3)
+
+```
+
+
+```{r}
+#Number of times each country made it to the top 50
+df_country_stats <- df %>% 
+  group_by(country) %>% 
+  summarize(number_of_ranks = n()) %>% 
+  arrange(desc(number_of_ranks))
+
+
+df_country_stats$country <-
+  ifelse(
+    df_country_stats$country == "FRA",
+    "France",
+    ifelse(
+      df_country_stats$country == "RUS",
+      "Russia",
+      ifelse(
+        df_country_stats$country == "AUT",
+        "Austria",
+        ifelse(
+          df_country_stats$country == "JPN",
+          "Japan",
+          ifelse(
+            df_country_stats$country == "SLO",
+            "Slovenia",
+            ifelse(
+              df_country_stats$country == "GER",
+              "Germany",
+              ifelse(
+                df_country_stats$country == "ITA",
+                "Italy",
+                ifelse(
+                  df_country_stats$country == "SUI",
+                  "Switzerland",
+                  ifelse(
+                    df_country_stats$country == "UKR",
+                    "Ukraine",
+                    ifelse(
+                      df_country_stats$country == "KOR",
+                      "South Korea",
+                      ifelse(
+                        df_country_stats$country == "CHN",
+                        "China",
+                        ifelse(
+                          df_country_stats$country == "CZE",
+                          "Czech Republic",
+                          ifelse(
+                            df_country_stats$country == "BEL",
+                            "Belgium",
+                            ifelse(
+                              df_country_stats$country == "NED",
+                              "Netherlands",
+                              ifelse(
+                                df_country_stats$country == "ESP",
+                                "Spain",
+                                ifelse(
+                                  df_country_stats$country == "CAN",
+                                  "Canada",
+                                  ifelse(
+                                    df_country_stats$country == "SWE",
+                                    "Sweden",
+                                    ifelse(
+                                      df_country_stats$country == "AUS",
+                                      "Australia",
+                                      ifelse(
+                                        df_country_stats$country == "POL",
+                                        "Poland",
+                                        ifelse(
+                                          df_country_stats$country == "NOR",
+                                          "Norway",
+                                          ifelse(
+                                            df_country_stats$country == "BUL",
+                                            "Bulgaria",
+                                            ifelse(
+                                              df_country_stats$country == "NZL",
+                                              "New Zealand",
+                                              ifelse(
+                                                df_country_stats$country == "SRB",
+                                                "Serbia",
+                                                ifelse(
+                                                  df_country_stats$country == "TPE",
+                                                  "Taiwan",
+                                                  ifelse(
+                                                    df_country_stats$country == "SVK",
+                                                    "Slovakia",
+                                                    ifelse(
+                                                      df_country_stats$country == "BRA",
+                                                      "Brazil",
+                                                      ifelse(
+                                                        df_country_stats$country == "IRI",
+                                                        "Iran",
+                                                        ifelse(
+                                                          df_country_stats$country == "KAZ",
+                                                          "Kazakhestan",
+                                                          ifelse(
+                                                            df_country_stats$country == "ARG",
+                                                            "Argentenia",
+                                                            ifelse(
+                                                              df_country_stats$country == "DEN",
+                                                              "Denmark",
+                                                              ifelse(
+                                                                df_country_stats$country == "GRE",
+                                                                "Greece",
+                                                                ifelse(
+                                                                  df_country_stats$country == "ISR",
+                                                                  "Israel",
+                                                                  ifelse(
+                                                                    df_country_stats$country == "SIN",
+                                                                    "Singapore",
+                                                                    ifelse(
+                                                                      df_country_stats$country == "THA",
+                                                                      "Thailand",
+                                                                      df_country_stats$country
+                                                                    )
+                                                                  )
+                                                                )
+                                                              )
+                                                            )
+                                                          )
+                                                        )
+                                                      )
+                                                    )
+                                                  )
+                                                )
+                                              )
+                                            )
+                                          )
+                                        )
+                                      )
+                                    )
+                                  )
+                                )
+                              )
+                            )
+                          )
+                        )
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+    )
+  )
+
+
+
+df_country_stats <- df_country_stats %>% 
+  rename(region = "country")
+
+## Map it here
+
+world <- map_data("world") %>% 
+  full_join(df_country_stats)
+
+ggplot() +
+  geom_map(
+    data = world, map = world,
+    aes(long, lat, map_id = region,
+        fill = number_of_ranks)
+  ) +
+  labs(x = "", y = "", fill = "Number of Athletes \nin Top 50") + 
+  scale_fill_gradient(low="thistle", high="darkred", na.value = "white") + 
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank())
+  
+```
+
+```{r}
+#First we average the rank each country received each year, then we average the rank per country throughout all the years 
+
+df_avg_rank <- df %>% 
+  group_by(year, country) %>% 
+  summarize(rank = mean(rank)) %>% 
+  group_by(country) %>% 
+  summarize(rank = mean(rank)) %>% 
+  arrange(rank)
+
+
+#Of course this doesn't take into consideration the overall times each country made it to the top 50
+```
+

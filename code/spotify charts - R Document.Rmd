@@ -1,0 +1,132 @@
+---
+title: "spotify_charts"
+author: "Ghinwa Moujaes"
+date: "14/05/2021"
+output: html_document
+---
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyverse)
+```
+
+It is a bit easier to read the data in R as we do not have to recreate the table from scratch. However, as shown by the message received, we need to be careful what type most columns are.
+Song Rank & Number of streams are read as doubles as intended. 
+However, chart_date is not read as a date. Make sure to specify the right format based on what is available!
+```{r}
+#reading the data
+spotify_charts <- read_csv("spotify_charts.csv")
+
+#read chart_date in date format
+spotify_charts$chart_date <- as.Date(spotify_charts$chart_date, format = "%d/%m/%Y")
+```
+
+Find out for how many dates we have charts:
+```{r}
+sort(unique(spotify_charts$chart_date))
+paste("Number of days we have different charts for:", length(unique(spotify_charts$chart_date)))
+```
+
+```{r}
+paste("Number of countries we have different charts for:", length(unique(spotify_charts$country)))
+```
+
+The following tells us for each date, how many charts do we have?
+```{r}
+spotify_charts %>% 
+  group_by(chart_date) %>% 
+  summarize(num_of_charts = n_distinct(country))
+```
+For each country, how many dates do we have?
+```{r}
+spotify_charts %>% 
+  group_by(country) %>% 
+  summarize(num_of_charts = n_distinct(chart_date))
+```
+On average, we have 31.48515 charts per date. 
+On average, we have 113.5714 charts per country
+
+```{r message=FALSE}
+spotify_charts %>% 
+  group_by(chart_date) %>% 
+  summarize(num_of_charts = n_distinct(country)) %>% 
+  summarize(average_charts_per_date = mean(num_of_charts))
+
+spotify_charts %>% 
+  group_by(country) %>% 
+  summarize(num_of_charts = n_distinct(chart_date)) %>% 
+  summarize(average_charts_per_country = mean(num_of_charts))
+```
+
+```{r}
+spotify_charts %>% 
+  group_by(chart_date) %>% 
+  filter(streams == max(streams))
+```
+To keep in line with what we did with SQL, we count how many times the top listened to song was in global vs. another country. 
+
+```{r}
+spotify_charts %>% 
+  group_by(chart_date) %>% 
+  filter(streams == max(streams)) %>% 
+  group_by(country) %>% 
+  summarize(num_of_times = n()) %>% 
+  arrange(desc(num_of_times))
+```
+
+For the Global song charts, these are the top 10 songs that show up on different dates most often:
+
+```{r}
+spotify_charts %>% 
+  filter(country == "Global") %>% 
+  group_by(track_title) %>% 
+  summarize(num_of_times_in_top_chart = n_distinct(chart_date)) %>% 
+  arrange(desc(num_of_times_in_top_chart)) %>% 
+  slice_head(n = 15)
+```
+
+For Switzerland:
+
+```{r}
+spotify_charts %>% 
+  filter(country == "Switzerland") %>% 
+  group_by(track_title) %>% 
+  summarize(num_of_times_in_top_chart = n_distinct(chart_date)) %>% 
+  arrange(desc(num_of_times_in_top_chart)) %>% 
+  slice_head(n = 30)
+```
+
+For a specific date: 07-07-2017, which songs show up in the top 50 songs globally and in Spain at the same time
+
+```{r}
+spotify_charts %>% 
+  filter(chart_date == "2017-07-07" & 
+           country %in% c("Global", "Spain") & 
+           song_rank <= 50) %>% 
+  group_by(track_title) %>% 
+  summarize(num_of_countries = n_distinct(country)) %>% 
+  filter(num_of_countries == 2)
+```
+
+For each date, show the number of songs that Italy and Spain have in common in the top 50. 
+
+```{r}
+spotify_charts %>% 
+  filter(country %in% c("Italy", "Spain")) %>% 
+  group_by(track_title, chart_date) %>% 
+  summarize(num_of_charts = n_distinct(country)) %>% 
+  filter(num_of_charts == 2) %>% 
+  group_by(chart_date) %>% 
+  summarize(num_of_common_songs = n_distinct(track_title))
+```
+
+How many songs do we have that show up only once in our dataset? 
+
+```{r}
+spotify_charts %>% 
+  group_by(track_title) %>% 
+  summarize(num_of_charts = n_distinct(paste(country, chart_date))) %>% 
+  filter(num_of_charts == 1) %>% 
+  nrow()
+```
+

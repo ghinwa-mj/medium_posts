@@ -1,0 +1,610 @@
+---
+title: "himym_episodes"
+author: "Ghinwa Moujaes"
+date: "04/01/2022"
+output: html_document
+---
+
+
+Let's start by taking a look at the dataset 
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+
+
+df_episodes <- read_csv("../Data Notebooks/himym_episodes_ratings/himym_episodes.csv")
+df_imdb <- read_csv("../Data Notebooks/himym_episodes_ratings/himym_imdb.csv")
+```
+We can see that in the first df, we have:
+- Season
+- Episode # in Season
+- Episode # Overall
+- Title
+- Director
+- Writers
+- Original Air Date
+- Production Code
+- Number of US Viewers
+```{r}
+head(df_episodes, n = 12)
+summary(df_episodes)
+```
+For the second df, we have:
+- Season
+- Episode Number
+- Title
+- Original Air Date
+- IMDB Rating
+- Total Votes
+- Description 
+
+```{r}
+head(df_imdb)
+```
+
+
+***Questions for Explanatory Analysis*** 
+
+How many episodes do we have per Season?
+```{r}
+#How many episodes do we have per season?
+g1 <- df_episodes %>% 
+  count(season) %>% 
+  ggplot(aes(x = as.factor(season), 
+             y = n)) + 
+  geom_col(aes(fill = as.factor(season)), 
+           stat = "identity") + 
+  theme_light() + 
+  geom_text(aes(label = n), 
+            vjust = - 0.45, 
+            fontface = "bold", 
+            alpha = 0.5) + 
+  labs(x = "Season", 
+       y = "Number of Episodes", 
+       title = "Number of Episodes per Season") + 
+  theme(legend.position = "none", 
+        plot.title = element_text(hjust = 0.5, 
+                                  face = "bold", 
+                                  size = 16)) + 
+  scale_y_continuous(labels = NULL,
+                     limits = c(0, 27)) + 
+  scale_fill_brewer(palette = "YlOrRd")
+
+ggsave("HIMYM_graphs/episodes_per_season.jpeg")
+```
+
+What are the 10 most watched episodes? What is the average watch rate?
+```{r}
+total_avg <- mean(df_episodes$us_viewers)
+
+
+df_episodes %>% 
+  group_by(season) %>% 
+  summarize(avg_viewers = mean(us_viewers)) %>% 
+  rbind(data.frame(
+    season = "average",
+    avg_viewers = total_avg
+  )) %>% 
+  mutate(season = as.factor(season),
+         color_code = ifelse(avg_viewers < total_avg, 
+                        "red",
+                        "blue")) %>% 
+  ungroup()  %>% 
+  ggplot(aes(x = season, 
+             y = avg_viewers, 
+             fill = color_code)) + 
+  geom_col(stat = "identity") + 
+  theme_classic() + 
+    labs(x = "Season", 
+       y = "Average Number of US Viewers", 
+       title = "Average Number of US Viewers per Season") + 
+  theme(legend.position = "right", 
+        plot.title = element_text(hjust = 0.5, 
+                                  face = "bold", 
+                                  size = 16)) + 
+  scale_y_continuous(labels = scales::comma) + 
+  scale_fill_manual(
+    name = "",
+    values = c("darkred", "lightblue"), 
+    labels = c("Viewes Higher than \n Overall Average", 
+               "Viewers Lower than \n Overall Average"))
+
+ggsave("HIMYM_graphs/avg_views_per_season.jpg")
+```
+- Correlation between Total Votes & IMDB Rating --> Not a super useful graph
+```{r}
+df_imdb %>% 
+  ggplot(aes(x = total_votes,
+             y = imdb_rating,
+             color = as.factor(season))) + 
+  geom_point()
+```
+
+- Rating per Season:
+
+```{r}
+#Make More Aesthetic & Change Color Scheme
+df_imdb %>% 
+  ggplot(aes(x = as.factor(season),
+             y = imdb_rating,
+             color = as.factor(season))) + 
+  geom_boxplot() +
+  stat_summary(fun.y=mean, 
+               aes(label = round(..y.., 2)),
+               geom = "text",
+               color="black", fill="black",
+               fontface = "bold", 
+               position = position_dodge()) +
+  theme_classic() + 
+  geom_jitter() + 
+  theme(legend.position = "none") + 
+  scale_color_brewer(palette = "RdYlBu") + 
+  labs(title = "Average Rating per Season", 
+       y = "Season", 
+       x = "IMDB Rating") + 
+  theme(plot.title = element_text(hjust = 0.5, 
+                                  face = "bold", 
+                                  size = 16))
+
+ggsave("HIMYM_graphs/average_rating_per_season.jpeg")
+
+```
+- How many people voted each Season:
+```{r}
+#Make More Aesthetic, change Color Scheme, play with outliers
+df_imdb %>% 
+  ggplot(aes(x = as.factor(season),
+             y = total_votes,
+             color = as.factor(season))) + 
+  geom_boxplot() + 
+  theme_classic() + 
+  geom_jitter() + 
+  theme(legend.position = "none") + 
+  scale_color_brewer(palette = "YlOrRd")
+```
+
+- Correlation between IMDB Rating & Num of US Viewers
+
+```{r}
+select(df_episodes, season, episode_num_in_season, us_viewers) %>% 
+  rename(episode_num = "episode_num_in_season") %>% 
+  full_join(select(df_imdb, season, episode_num, imdb_rating)) %>% 
+  ggplot(aes(x = imdb_rating, 
+             y = us_viewers)) + 
+  geom_point() + 
+  geom_smooth()
+
+```
+
+- Corr plot: What is the correlation between ratings, us-viewers & imdb votes?
+
+```{r}
+col_pal <- colorRampPalette(c("red", "white", "blue"))(100)
+         
+
+#Not sure how to change colors. :(                   
+                            
+select(df_episodes, season, episode_num_in_season, us_viewers) %>% 
+  rename(episode_num = "episode_num_in_season") %>% 
+  inner_join(select(df_imdb, season, episode_num, imdb_rating, total_votes)) %>%
+  select(us_viewers, imdb_rating, total_votes) %>% 
+  rename("Number of \nUS Viewers" = "us_viewers",
+         "IMDB Rating" = "imdb_rating", 
+         "Number of \nTotal Votes" = "total_votes") %>% 
+  cor() %>% 
+  corrplot::corrplot.mixed(lower.col = "black",
+                           title = "Correlation plot",
+                           mar=c(0,0,2,4)) 
+```
+
+- Number of Viewers per Date:
+
+```{r}
+df_episodes %>% 
+  ggplot(aes(x = as.Date(original_air_date),
+             y = us_viewers)) + 
+  geom_col(aes(fill = as.factor(season))) + 
+  theme_classic() + 
+  scale_y_continuous(labels = scales::comma) + 
+  scale_x_date(date_breaks = "1 year",
+               date_labels = "%Y") + 
+  scale_fill_brewer(palette = "RdYlBu") + 
+  labs(title = "Number of US Viewers vs. Release Dates",
+       y = "US Viewers", 
+       x = "Release Date",
+       fill = "Season") + 
+  theme(plot.title = element_text(hjust = 0.5, 
+                                  face = "bold", 
+                                  size = 16)) 
+
+ggsave("HIMYM_graphs/viewers_per_release_date.jpeg")
+```
+
+```{r}
+df_episodes %>% 
+  ggplot(aes(x = as.Date(original_air_date),
+             y = us_viewers)) + 
+  geom_col(aes(fill = as.factor(lubridate::year(as.Date(original_air_date))))) + 
+  theme_classic() + 
+  scale_y_continuous(labels = scales::comma) + 
+  scale_x_date(date_breaks = "1 year",
+               date_labels = "%Y") + 
+  scale_fill_brewer(palette = "RdYlBu") + 
+  labs(title = "Number of US Viewers vs. Release Dates",
+       y = "US Viewers", 
+       x = "Release Date") + 
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5, 
+                                  face = "bold", 
+                                  size = 16)) 
+```
+
+
+- Total Number of US Viewers per Year 
+```{r}
+df_episodes %>% 
+  mutate(year = lubridate::year(as.Date(original_air_date))) %>% 
+  group_by(year, season) %>% 
+  summarize(total_viewers = sum(us_viewers)) %>% 
+  ggplot(aes(x = as.factor(year), 
+             y = total_viewers)) + 
+  geom_col(aes(fill = as.factor(season)),
+           stat = "identity") + 
+  scale_y_continuous(labels = scales::comma) + 
+  scale_fill_brewer(palette = "RdYlBu") + 
+  labs(title = "Total Number of US Viewers per Year",
+       y = "US Viewers", 
+       x = "Year of Release Date",
+       fill = "Season") + 
+  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5, 
+                                  face = "bold", 
+                                  size = 16)) 
+
+ggsave("HIMYM_graphs/viewers_per_release_year.jpeg")
+```
+
+
+- How many episodes came out each month?
+```{r}
+df_episodes %>% 
+  mutate(month = lubridate::month(as.Date(original_air_date))) %>% 
+  group_by(month) %>% 
+  summarise(num_episodes_released = n()) %>% 
+  ggplot(aes(x = as.factor(month),
+             y = num_episodes_released,
+             fill = as.factor(month))) + 
+  geom_col(stat = "identity") + 
+  labs(title = "Episodes Released per Month",
+       y = "Number of Episodes Released", 
+       x = "Month of Year") + 
+  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5, 
+                                  face = "bold", 
+                                  size = 16), 
+        legend.position = "none") + 
+  scale_fill_brewer(palette = "YlOrRd") + 
+  scale_x_discrete(labels = c("1" = "January",
+                              "2" = "February",
+                              "3" = "March",
+                              "4" = "April",
+                              "5" = "May",
+                              "6" = "June",
+                              "7" = "July",
+                              "8" = "August",
+                              "9" = "September",
+                              "10" = "October",
+                              "11" = "November",
+                              "12" = "December"
+                              ))
+
+ggsave("HIMYM_graphs/episodes_released_per_month.jpeg")
+```
+
+- Text Mining on Episode Descriptions:
+  - Most Used Words
+  - Topic Modelling?
+  - Words that can predict the number of viewers
+  - Correlation between number of times love is in the description & viewer count/IMDB Rating
+
+
+```{r}
+library(tidytext)
+library(tm)
+library(qdap)
+#library(RGraphViz)
+
+df_text <- df_imdb %>% 
+  select(season, episode_num, desc)
+
+#Clean the text
+df_text$text <- tolower(df_text$desc)
+df_text$text <- tm::removeNumbers(df_text$text)
+
+#Remove all punctuation 
+df_text$text <- str_replace_all(df_text$text, pattern = "[[:punct:]]", " ")
+
+#Remove all stopwords
+df_text$text <- tm::removeWords(df_text$text,
+                                stopwords::stopwords("english"))
+
+
+#What are the 25 most frequent terms?
+qdap::freq_terms(text.var = df_text$text, 
+           top = 25)
+
+#TF-IDF. Let's assume that each Document is an episode here
+
+## Step 1. Tokenize:
+df_text_episodes <- df_text %>% 
+  unnest_tokens(words, text) %>% 
+  count(season, episode_num, words, sort = TRUE) %>% 
+    filter(words != c("s", "t"))
+
+
+#Step 2: Bind-TFIDF Function
+df_tfidf_episodes <- df_text_episodes %>% 
+  bind_tf_idf(words, episode_num, n)
+
+#What are the most used terms in this case?
+df_tfidf_episodes %>% 
+  arrange(desc(tf_idf))
+
+#TF-IDF. Let's assume that each Document is a season here
+df_text_seasons <- df_text %>% 
+  unnest_tokens(words, text) %>% 
+  filter(words != c("s", "t")) %>% 
+  count(season, words, sort = TRUE)
+
+#Step 2: Bind-TFIDF Function
+df_tfidf_seasons <- df_text_seasons %>% 
+  bind_tf_idf(words, season, n)
+
+#What are the most used terms in this case?
+df_tfidf_seasons %>% 
+  arrange(desc(tf_idf))
+```
+
+
+We can see the most frequently used important words:
+- Ted
+- Barney
+- Robin
+- Marshall
+- Lily
+- Wedding
+- Date
+- Gang
+- Relationship
+- Night
+
+
+According to the TF-IDF by episode, the most important words are:
+- Slap
+- Thanksgiving
+- Future
+- Texting
+- Relationships
+- Holding
+- Received
+- Rid
+- Another
+- Blind
+
+According to the TF-IDF by episode, the most important words are:
+- Zoey
+- GNB
+- Kevin
+- Daphne
+- Abby
+- Island
+- Stella
+- Farhamton
+- Nora
+- Another
+
+
+```{r}
+#Good Start now consider which words we should consider "stop-words" and how to better visualize this
+
+season_words <- df_tfidf_seasons %>% 
+  group_by(season) %>%
+  #Take the top ten most frequent words per season
+  top_n(n = 10) %>% 
+  ungroup()
+
+df_tfidf_seasons %>% 
+  group_by(season) %>% 
+  #Take the top ten most frequent words per season
+    top_n(n = 10) %>% 
+  ggplot(aes(x = tf_idf, 
+             y = forcats::fct_reorder(as.factor(words), tf_idf),
+             fill = as.factor(season)
+             )) + 
+  geom_col(show.legend = FALSE) + 
+  facet_wrap(~as.factor(season), 
+             ncol = 3,
+             scales = "free") + 
+  labs(x = "tf-idf", 
+       y = "")
+  
+```
+
+(The below doesn't say much so I would just remove/ignore it for now)
+
+Let us try to find whether there is a correlation between the number of times each of these words comes up and their IMDB rating and/or number of US viewers
+```{r}
+df_text <- df_text %>% 
+  mutate(
+    ted = str_count(text, pattern = "ted"), 
+    barney = str_count(text, pattern = "barney"),
+    robin = str_count(text, pattern = "robin"), 
+    marshall = str_count(text, pattern = "marshall"),
+    lily = str_count(text, pattern = "lily"), 
+    wedding = str_count(text, pattern = "wedding"),
+    date = str_count(text, pattern = "date"),
+    gang = str_count(text, pattern = "gang"), 
+    relationship = str_count(text, pattern = "relationship"),
+    night = str_count(text, pattern = "night")
+  )
+
+df_temp <- df_episodes %>% 
+  select(season, episode_num_in_season, us_viewers) %>% 
+  rename(episode_num = "episode_num_in_season") %>% 
+  inner_join(select(df_imdb, season, episode_num, imdb_rating)) %>% 
+  inner_join(df_text) %>% 
+  select(us_viewers, ted, barney, robin, marshall, lily, wedding, date, gang, relationship, night)
+  
+#Maybe corrplot is not the best way to visualize the correlation
+corrplot::corrplot(cor(df_temp[,1:11])[1:11,1,drop = FALSE],
+                   method = "color", 
+                   cl.pos = "n",
+                   addCoef.col = 'grey50')
+```
+
+- Topic Modeling:
+```{r}
+library(topicmodels)
+
+#For topic Modeling, we need to introduce the df in the tf-idf format but also in a DTM format
+df_seasons_dtm <- df_tfidf_seasons %>% 
+  filter(!(words %in% c("robin", "lily", "marshall", "ted", "barney", "s", "meanwhile", "t", "get", "gets", "tries")))  %>% 
+  cast_dtm(season, words, n)
+
+seasons_lda <- 
+  LDA(df_seasons_dtm, 
+      k = 4)
+
+seasons_topics <- tidy(seasons_lda, matrix = "beta") %>% 
+  group_by(topic) %>% 
+  slice_max(beta, n = 5) %>% 
+  ungroup() %>% 
+  arrange(topic, beta)
+
+seasons_topics %>% 
+  ggplot(aes(beta, 
+             term, 
+             fill = as.factor(topic))) +
+  geom_col(show.legend = FALSE) + 
+  facet_wrap(~ topic,
+             scales = "free") + 
+  scale_y_reordered() + 
+  labs(title = "Topic Modeling Results - 4 Groups", 
+       x = "", 
+       y = "Term") + 
+    theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5, 
+                                  face = "bold", 
+                                  size = 16), 
+        legend.position = "none")
+
+ggsave("HIMYM_graphs/topic_modeling_4groups.jpeg")
+```
+```{r}
+seasons_lda <- 
+  LDA(df_seasons_dtm, 
+      k = 5)
+
+seasons_topics <- tidy(seasons_lda, matrix = "beta") %>% 
+  group_by(topic) %>% 
+  slice_max(beta, n = 5) %>% 
+  ungroup() %>% 
+  arrange(topic, beta)
+
+seasons_topics %>% 
+  ggplot(aes(beta, 
+             term, 
+             fill = as.factor(topic))) +
+  geom_col(show.legend = FALSE) + 
+  facet_wrap(~ topic,
+             scales = "free") + 
+  scale_y_reordered() + 
+  labs(title = "Topic Modeling Results - 5 Groups", 
+       x = "", 
+       y = "Term") + 
+    theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5, 
+                                  face = "bold", 
+                                  size = 16), 
+        legend.position = "none")
+
+ggsave("HIMYM_graphs/topic_modeling_5groups.jpeg")
+```
+
+
+```{r}
+#How much is each topic represented in each Chapter?
+tidy(seasons_lda, 
+     matrix = "gamma")
+
+#What is the best way to visualize this?
+tidy(seasons_lda, 
+     matrix = "gamma") %>% 
+  ggplot(aes(x = topic,
+             y = gamma,
+             fill = document)) + 
+  geom_col(show.legend = FALSE) + 
+  facet_wrap(~document) + 
+  labs(title = "Topic Prevalence per Season",
+       x = "Topic", 
+       y = expression(gamma)) + 
+  theme_light() +
+  theme(plot.title = element_text(hjust = 0.5, 
+                                  face = "bold", 
+                                  size = 16)) 
+
+```
+- What words tend to correlate together: https://www.tidytextmining.com/ngrams.html 
+
+- Sentiment Analysis
+```{r}
+#What are the words that imply "joy" most widely used in the descriptions?
+
+nrc_joy <- get_sentiments("nrc") %>% 
+  filter(sentiment == "joy")
+
+df_text_episodes %>%
+  rename(word = "words") %>% 
+  inner_join(nrc_joy) %>% 
+  count(word, sort = TRUE)
+
+#What are the words that imply "sadness" most widely used in the descriptions?
+nrc_sadness <- get_sentiments("nrc") %>% 
+  filter(sentiment == "sadness")
+
+df_text_episodes %>% 
+  rename(word = "words") %>% 
+  inner_join(nrc_sadness) %>% 
+  count(word, sort = TRUE)
+
+```
+
+
+#This is good to learn but I wouldn't show it because it's a bit contradictory to saying this is a "comedy" series
+
+```{r}
+df_sentiments <- df_text_episodes %>% 
+  rename(word = "words") %>% 
+  inner_join(get_sentiments("bing")) %>% 
+  pivot_wider(id_cols = 1:3, 
+              names_from = sentiment, 
+              values_from = n, 
+              values_fill = 0.00) %>% 
+  group_by(season, episode_num) %>% 
+  summarise(positive = sum(positive),
+            negative = sum(negative)) %>% 
+  mutate(sentiment = positive - negative)
+
+
+df_sentiments %>% 
+  ggplot(aes(x = episode_num,
+             y = sentiment,
+             fill = season)) + 
+  geom_col(show.legend = FALSE) + 
+  facet_wrap(~season, 
+             ncol = 2, scales = "free")
+
+```
+
